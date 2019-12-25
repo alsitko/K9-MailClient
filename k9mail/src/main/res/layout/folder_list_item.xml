@@ -5,15 +5,14 @@
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:minHeight="?android:attr/listPreferredItemHeight"
-        android:layout_marginBottom="136dp"
-        android:layout_marginTop="136dp"
+        android:paddingRight="4dip"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
     <View
             android:id="@+id/chip"
             android:layout_height="match_parent"
-            android:layout_width="3dip"
+            android:layout_width="8dip"
             android:background="#ff336699"
             android:layout_marginRight="8dip"
             />
@@ -25,8 +24,8 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center_vertical"
-            android:paddingTop="12dip"
-            android:paddingBottom="12dip"
+            android:paddingBottom="2dip"
+
             android:paddingLeft="6dip">
 
         <TextView

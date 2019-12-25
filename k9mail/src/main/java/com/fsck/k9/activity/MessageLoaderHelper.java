@@ -13,13 +13,17 @@ import android.os.Parcelable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
-import android.util.Log;
+
+import com.fsck.k9.autocrypt.AutocryptOperations;
+import com.fsck.k9.ui.crypto.OpenPgpApiFactory;
+import timber.log.Timber;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.controller.MessagingController;
 import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.controller.SimpleMessagingListener;
 import com.fsck.k9.helper.RetainFragment;
 import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mailstore.LocalMessage;
@@ -77,6 +81,7 @@ public class MessageLoaderHelper {
     private LoaderManager loaderManager;
     @Nullable // make this explicitly nullable, make sure to cancel/ignore any operation if this is null
     private MessageLoaderCallbacks callback;
+    private final boolean processSignedOnly;
 
 
     // transient state
@@ -96,6 +101,8 @@ public class MessageLoaderHelper {
         this.loaderManager = loaderManager;
         this.fragmentManager = fragmentManager;
         this.callback = callback;
+
+        processSignedOnly = K9.getOpenPgpSupportSignOnly();
     }
 
 
@@ -110,7 +117,7 @@ public class MessageLoaderHelper {
             if (cachedDecryptionResult instanceof OpenPgpDecryptionResult) {
                 this.cachedDecryptionResult = (OpenPgpDecryptionResult) cachedDecryptionResult;
             } else {
-                Log.e(K9.LOG_TAG, "Got decryption result of unknown type - ignoring");
+                Timber.e("Got decryption result of unknown type - ignoring");
             }
         }
 
@@ -126,7 +133,11 @@ public class MessageLoaderHelper {
     public void asyncRestartMessageCryptoProcessing() {
         cancelAndClearCryptoOperation();
         cancelAndClearDecodeLoader();
-        startOrResumeCryptoOperation();
+        if (K9.isOpenPgpProviderConfigured()) {
+            startOrResumeCryptoOperation();
+        } else {
+            startOrResumeDecodeMessage();
+        }
     }
 
     /** Cancels all loading processes, prevents future callbacks, and destroys all loading state. */
@@ -177,12 +188,12 @@ public class MessageLoaderHelper {
         boolean isLoaderStale = (loader == null) || !loader.isCreatedFor(messageReference);
 
         if (isLoaderStale) {
-            Log.d(K9.LOG_TAG, "Creating new local message loader");
+            Timber.d("Creating new local message loader");
             cancelAndClearCryptoOperation();
             cancelAndClearDecodeLoader();
             loaderManager.restartLoader(LOCAL_MESSAGE_LOADER_ID, null, localMessageLoaderCallback);
         } else {
-            Log.d(K9.LOG_TAG, "Reusing local message loader");
+            Timber.d("Reusing local message loader");
             loaderManager.initLoader(LOCAL_MESSAGE_LOADER_ID, null, localMessageLoaderCallback);
         }
     }
@@ -202,7 +213,7 @@ public class MessageLoaderHelper {
             return;
         }
 
-        if (account.isOpenPgpProviderConfigured()) {
+        if (K9.isOpenPgpProviderConfigured()) {
             startOrResumeCryptoOperation();
             return;
         }
@@ -261,12 +272,14 @@ public class MessageLoaderHelper {
         RetainFragment<MessageCryptoHelper> retainCryptoHelperFragment = getMessageCryptoHelperRetainFragment(true);
         if (retainCryptoHelperFragment.hasData()) {
             messageCryptoHelper = retainCryptoHelperFragment.getData();
-        } else {
-            messageCryptoHelper = new MessageCryptoHelper(context, account.getOpenPgpProvider());
+        }
+        if (messageCryptoHelper == null || messageCryptoHelper.isConfiguredForOutdatedCryptoProvider()) {
+            messageCryptoHelper = new MessageCryptoHelper(
+                    context, new OpenPgpApiFactory(), AutocryptOperations.getInstance());
             retainCryptoHelperFragment.setData(messageCryptoHelper);
         }
         messageCryptoHelper.asyncStartOrResumeProcessingMessage(
-                localMessage, messageCryptoCallback, cachedDecryptionResult);
+                localMessage, messageCryptoCallback, cachedDecryptionResult, processSignedOnly);
     }
 
     private void cancelAndClearCryptoOperation() {
@@ -330,10 +343,10 @@ public class MessageLoaderHelper {
         boolean isLoaderStale = (loader == null) || !loader.isCreatedFor(localMessage, messageCryptoAnnotations);
 
         if (isLoaderStale) {
-            Log.d(K9.LOG_TAG, "Creating new decode message loader");
+            Timber.d("Creating new decode message loader");
             loaderManager.restartLoader(DECODE_MESSAGE_LOADER_ID, null, decodeMessageLoaderCallback);
         } else {
-            Log.d(K9.LOG_TAG, "Reusing decode message loader");
+            Timber.d("Reusing decode message loader");
             loaderManager.initLoader(DECODE_MESSAGE_LOADER_ID, null, decodeMessageLoaderCallback);
         }
     }
@@ -425,7 +438,7 @@ public class MessageLoaderHelper {
         }
     }
 
-    MessagingListener downloadMessageListener = new MessagingListener() {
+    MessagingListener downloadMessageListener = new SimpleMessagingListener() {
         @Override
         public void loadMessageRemoteFinished(Account account, String folder, String uid) {
             if (!messageReference.equals(account.getUuid(), folder, uid)) {

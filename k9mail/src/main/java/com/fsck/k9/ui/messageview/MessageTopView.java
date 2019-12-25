@@ -19,6 +19,7 @@ import android.widget.TextView;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.Account.ShowPictures;
+import com.fsck.k9.K9;
 import com.fsck.k9.R;
 import com.fsck.k9.helper.Contacts;
 import com.fsck.k9.mail.Address;
@@ -114,7 +115,7 @@ public class MessageTopView extends LinearLayout {
                 containerView, false);
         containerView.addView(view);
 
-        boolean hideUnsignedTextDivider = !account.getCryptoSupportSignOnly();
+        boolean hideUnsignedTextDivider = !K9.getOpenPgpSupportSignOnly();
         view.displayMessageViewContainer(messageViewInfo, new OnRenderingFinishedListener() {
             @Override
             public void onLoadFinished() {
@@ -128,10 +129,23 @@ public class MessageTopView extends LinearLayout {
     }
 
     public void showMessageCryptoWarning(final MessageViewInfo messageViewInfo, Drawable providerIcon,
-            @StringRes int warningTextRes) {
+            @StringRes int warningTextRes, boolean showDetailButton) {
         resetAndPrepareMessageView(messageViewInfo);
         View view = mInflater.inflate(R.layout.message_content_crypto_warning, containerView, false);
         setCryptoProviderIcon(providerIcon, view);
+
+        View detailButton = view.findViewById(R.id.crypto_warning_details);
+        if(showDetailButton) {
+            detailButton.setVisibility(View.VISIBLE);
+            detailButton.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    messageCryptoPresenter.onClickShowCryptoWarningDetails();
+                }
+            });
+        } else {
+            detailButton.setVisibility(View.GONE);
+        }
 
         view.findViewById(R.id.crypto_warning_override).setOnClickListener(new OnClickListener() {
             @Override
@@ -181,6 +195,21 @@ public class MessageTopView extends LinearLayout {
             @Override
             public void onClick(View view) {
                 messageCryptoPresenter.onClickRetryCryptoOperation();
+            }
+        });
+
+        containerView.addView(view);
+        displayViewOnLoadFinished(false);
+    }
+
+    public void showCryptoProviderNotConfigured(final MessageViewInfo messageViewInfo) {
+        resetAndPrepareMessageView(messageViewInfo);
+        View view = mInflater.inflate(R.layout.message_content_crypto_no_provider, containerView, false);
+
+        view.findViewById(R.id.crypto_settings).setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                messageCryptoPresenter.onClickConfigureProvider();
             }
         });
 

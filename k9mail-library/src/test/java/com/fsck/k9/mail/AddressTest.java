@@ -3,8 +3,6 @@ package com.fsck.k9.mail;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
-import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -12,8 +10,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 
-@RunWith(RobolectricTestRunner.class)
-@Config(manifest = Config.NONE, sdk = 21)
+@RunWith(K9LibRobolectricTestRunner.class)
 public class AddressTest {
     /**
      * test the possibility to parse "From:" fields with no email.
@@ -21,8 +18,9 @@ public class AddressTest {
      * http://code.google.com/p/k9mail/issues/detail?id=3814
      */
     @Test
-    public void testParseWithMissingEmail() {
+    public void parse_withMissingEmail__shouldSetPersonal() {
         Address[] addresses = Address.parse("NAME ONLY");
+
         assertEquals(1, addresses.length);
         assertEquals(null, addresses[0].getAddress());
         assertEquals("NAME ONLY", addresses[0].getPersonal());
@@ -32,15 +30,16 @@ public class AddressTest {
      * test name + valid email
      */
     @Test
-    public void testParseWithValidEmail() {
+    public void parse_withValidEmailAndPersonal_shouldSetBoth() {
         Address[] addresses = Address.parse("Max Mustermann <maxmuster@mann.com>");
+
         assertEquals(1, addresses.length);
         assertEquals("maxmuster@mann.com", addresses[0].getAddress());
         assertEquals("Max Mustermann", addresses[0].getPersonal());
     }
 
     @Test
-    public void testParseUnusualEmails() {
+    public void parse_withUnusualEmails_shouldSetAddress() {
         String[] testEmails = new String [] {
                 "prettyandsimple@example.com",
                 "very.common@example.com",
@@ -63,18 +62,40 @@ public class AddressTest {
                 "user@localserver",
                 "user@[IPv6:2001:db8::1]"
         };
+
         for(String testEmail: testEmails) {
             Address[] addresses = Address.parse("Anonymous <"+testEmail+">");
+
             assertEquals(1, addresses.length);
             assertEquals(testEmail, addresses[0].getAddress());
         }
+    }
+
+    @Test
+    public void parse_withEncodedPersonal_shouldDecode() {
+        Address[] addresses = Address.parse(
+                "=?UTF-8?B?WWFob28h44OA44Kk44Os44Kv44OI44Kq44OV44Kh44O8?= <directoffer-master@mail.yahoo.co.jp>");
+
+        assertEquals("Yahoo!ダイレクトオファー", addresses[0].getPersonal());
+        assertEquals("directoffer-master@mail.yahoo.co.jp", addresses[0].getAddress());
+
+    }
+
+    @Test
+    public void parse_withQuotedEncodedPersonal_shouldDecode() {
+        Address[] addresses = Address.parse(
+                "\"=?UTF-8?B?WWFob28h44OA44Kk44Os44Kv44OI44Kq44OV44Kh44O8?= \"<directoffer-master@mail.yahoo.co.jp>");
+
+        assertEquals("Yahoo!ダイレクトオファー ", addresses[0].getPersonal());
+        assertEquals("directoffer-master@mail.yahoo.co.jp", addresses[0].getAddress());
+
     }
 
     /**
      * test with multi email addresses
      */
     @Test
-    public void testParseWithValidEmailMulti() {
+    public void parse_withMultipleEmails_shouldDecodeBoth() {
         Address[] addresses = Address.parse("lorem@ipsum.us,mark@twain.com");
         assertEquals(2, addresses.length);
         assertEquals("lorem@ipsum.us", addresses[0].getAddress());
@@ -158,5 +179,11 @@ public class AddressTest {
         String result = address.getHostname();
 
         assertNull(result);
+    }
+
+    @Test
+    public void handlesInvalidBase64Encoding() throws Exception {
+        Address address = Address.parse("=?utf-8?b?invalid#?= <oops@example.com>")[0];
+        assertEquals("oops@example.com", address.getAddress());
     }
 }

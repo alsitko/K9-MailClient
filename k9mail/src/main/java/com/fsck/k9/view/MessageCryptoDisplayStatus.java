@@ -125,6 +125,12 @@ public enum MessageCryptoDisplayStatus {
             R.string.crypto_msg_encrypted_error
     ),
 
+    ENCRYPTED_INSECURE (
+            R.attr.openpgp_red,
+            R.drawable.status_lock_error,
+            R.string.crypto_msg_encrypted_insecure
+    ),
+
     INCOMPLETE_ENCRYPTED (
             R.attr.openpgp_black,
             R.drawable.status_lock_opportunistic,
@@ -134,6 +140,12 @@ public enum MessageCryptoDisplayStatus {
             R.attr.openpgp_black,
             R.drawable.status_signature_unverified_cutout, R.drawable.status_dots,
             R.string.crypto_msg_signed_unencrypted, R.string.crypto_msg_sign_incomplete
+    ),
+
+    ENCRYPTED_NO_PROVIDER (
+            R.attr.openpgp_red,
+            R.drawable.status_lock_error,
+            R.string.crypto_msg_unsupported_encrypted
     ),
 
     UNSUPPORTED_ENCRYPTED (
@@ -214,6 +226,9 @@ public enum MessageCryptoDisplayStatus {
 
             case OPENPGP_ENCRYPTED_API_ERROR:
                 return ENCRYPTED_ERROR;
+
+            case OPENPGP_ENCRYPTED_NO_PROVIDER:
+                return ENCRYPTED_NO_PROVIDER;
         }
         throw new IllegalStateException("Unhandled case!");
     }
@@ -245,8 +260,7 @@ public enum MessageCryptoDisplayStatus {
                 return getStatusForPgpEncryptedResult(signatureResult);
 
             case OpenPgpDecryptionResult.RESULT_INSECURE:
-                // TODO handle better?
-                return ENCRYPTED_ERROR;
+                return ENCRYPTED_INSECURE;
         }
 
         throw new AssertionError("all cases must be handled, this is a bug!");

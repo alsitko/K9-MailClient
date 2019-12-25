@@ -2,15 +2,14 @@ package com.fsck.k9.helper;
 
 
 import android.content.ContentResolver;
-import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
-import android.util.Log;
+import timber.log.Timber;
+import android.provider.ContactsContract.CommonDataKinds.Photo;
 
-import com.fsck.k9.K9;
 import com.fsck.k9.mail.Address;
 
 /**
@@ -32,7 +31,8 @@ public class Contacts {
     protected static final String PROJECTION[] = {
             ContactsContract.CommonDataKinds.Email._ID,
             ContactsContract.Contacts.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Email.CONTACT_ID
+            ContactsContract.CommonDataKinds.Email.CONTACT_ID,
+            Photo.PHOTO_URI
     };
 
     /**
@@ -229,7 +229,6 @@ public class Contacts {
      *         no such contact could be found or the contact doesn't have a picture.
      */
     public Uri getPhotoUri(String address) {
-        Long contactId;
         try {
             final Cursor c = getContactByAddress(address);
             if (c == null) {
@@ -240,32 +239,18 @@ public class Contacts {
                 if (!c.moveToFirst()) {
                     return null;
                 }
-
-                contactId = c.getLong(CONTACT_ID_INDEX);
+                int columnIndex = c.getColumnIndex(Photo.PHOTO_URI);
+                final String uriString = c.getString(columnIndex);
+                if (uriString == null)
+                    return null;
+                return Uri.parse(uriString);
+            } catch (IllegalStateException e) {
+                return null;
             } finally {
                 c.close();
             }
-
-            Cursor cur = mContentResolver.query(
-                    ContactsContract.Data.CONTENT_URI,
-                    null,
-                    ContactsContract.Data.CONTACT_ID + "=" + contactId + " AND "
-                            + ContactsContract.Data.MIMETYPE + "='"
-                            + ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE + "'", null,
-                    null);
-            if (cur == null) {
-                return null;
-            }
-            if (!cur.moveToFirst()) {
-                cur.close();
-                return null; // no photo
-            }
-            // Ok, they have a photo
-            cur.close();
-            Uri person = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId);
-            return Uri.withAppendedPath(person, ContactsContract.Contacts.Photo.CONTENT_DIRECTORY);
         } catch (Exception e) {
-            Log.e(K9.LOG_TAG, "Couldn't fetch photo for contact with email " + address, e);
+            Timber.e(e, "Couldn't fetch photo for contact with email %s", address);
             return null;
         }
     }

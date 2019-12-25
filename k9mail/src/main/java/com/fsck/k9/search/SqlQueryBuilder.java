@@ -2,10 +2,9 @@ package com.fsck.k9.search;
 
 import java.util.List;
 
-import android.util.Log;
+import timber.log.Timber;
 
 import com.fsck.k9.Account;
-import com.fsck.k9.K9;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mailstore.LocalFolder;
@@ -78,7 +77,7 @@ public class SqlQueryBuilder {
                 case MESSAGE_CONTENTS: {
                     String fulltextQueryString = condition.value;
                     if (condition.attribute != Attribute.CONTAINS) {
-                        Log.e(K9.LOG_TAG, "message contents can only be matched!");
+                        Timber.e("message contents can only be matched!");
                     }
                     query.append("m.id IN (SELECT docid FROM messages_fulltext WHERE fulltext MATCH ?)");
                     selectionArgs.add(fulltextQueryString);
@@ -111,7 +110,7 @@ public class SqlQueryBuilder {
             LocalStore localStore = account.getLocalStore();
             LocalFolder folder = localStore.getFolder(folderName);
             folder.open(Folder.OPEN_MODE_RO);
-            folderId = folder.getId();
+            folderId = folder.getDatabaseId();
         } catch (MessagingException e) {
             //FIXME
             e.printStackTrace();

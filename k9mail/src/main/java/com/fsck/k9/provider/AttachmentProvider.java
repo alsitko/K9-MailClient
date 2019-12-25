@@ -13,18 +13,16 @@ import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
+import timber.log.Timber;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.BuildConfig;
-import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mailstore.LocalStore;
 import com.fsck.k9.mailstore.LocalStore.AttachmentInfo;
 import org.openintents.openpgp.util.OpenPgpApi.OpenPgpDataSource;
-import org.openintents.openpgp.util.ParcelFileDescriptorUtil;
 
 
 /**
@@ -96,14 +94,12 @@ public class AttachmentProvider extends ContentProvider {
             final Account account = Preferences.getPreferences(getContext()).getAccount(accountUuid);
             attachmentInfo = LocalStore.getInstance(account, getContext()).getAttachmentInfo(id);
         } catch (MessagingException e) {
-            Log.e(K9.LOG_TAG, "Unable to retrieve attachment info from local store for ID: " + id, e);
+            Timber.e(e, "Unable to retrieve attachment info from local store for ID: %s", id);
             return null;
         }
 
         if (attachmentInfo == null) {
-            if (K9.DEBUG) {
-                Log.d(K9.LOG_TAG, "No attachment info for ID: " + id);
-            }
+            Timber.d("No attachment info for ID: %s", id);
             return null;
         }
 
@@ -154,7 +150,7 @@ public class AttachmentProvider extends ContentProvider {
                 type = attachmentInfo.type;
             }
         } catch (MessagingException e) {
-            Log.e(K9.LOG_TAG, "Unable to retrieve LocalStore for " + account, e);
+            Timber.e(e, "Unable to retrieve LocalStore for %s", account);
             type = MimeUtility.DEFAULT_ATTACHMENT_MIME_TYPE;
         }
 
@@ -166,15 +162,15 @@ public class AttachmentProvider extends ContentProvider {
         try {
             OpenPgpDataSource openPgpDataSource = getAttachmentDataSource(accountUuid, attachmentId);
             if (openPgpDataSource == null) {
-                Log.e(K9.LOG_TAG, "Error getting data source for attachment (part doesn't exist?)");
+                Timber.e("Error getting data source for attachment (part doesn't exist?)");
                 return null;
             }
             return openPgpDataSource.startPumpThread();
         } catch (MessagingException e) {
-            Log.e(K9.LOG_TAG, "Error getting InputStream for attachment", e);
+            Timber.e(e, "Error getting InputStream for attachment");
             return null;
         } catch (IOException e) {
-            Log.e(K9.LOG_TAG, "Error creating ParcelFileDescriptor", e);
+            Timber.e(e, "Error creating ParcelFileDescriptor");
             return null;
         }
     }

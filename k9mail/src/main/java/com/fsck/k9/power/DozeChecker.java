@@ -1,10 +1,10 @@
 package com.fsck.k9.power;
 
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.os.Build;
 import android.os.PowerManager;
+import android.support.annotation.RequiresApi;
 
 
 public class DozeChecker {
@@ -21,7 +21,7 @@ public class DozeChecker {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
+    @RequiresApi(api = Build.VERSION_CODES.M)
     public boolean isAppWhitelisted() {
         return powerManager.isIgnoringBatteryOptimizations(packageName);
     }

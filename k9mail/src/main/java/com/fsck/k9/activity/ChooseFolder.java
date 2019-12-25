@@ -27,6 +27,7 @@ import com.fsck.k9.Preferences;
 import com.fsck.k9.R;
 import com.fsck.k9.controller.MessagingController;
 import com.fsck.k9.controller.MessagingListener;
+import com.fsck.k9.controller.SimpleMessagingListener;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mailstore.LocalFolder;
 
@@ -241,7 +242,7 @@ public class ChooseFolder extends K9ListActivity {
         MessagingController.getInstance(getApplication()).listFolders(mAccount, false, mListener);
     }
 
-    private MessagingListener mListener = new MessagingListener() {
+    private MessagingListener mListener = new SimpleMessagingListener() {
         @Override
         public void listFoldersStarted(Account account) {
             if (!account.equals(mAccount)) {
@@ -337,8 +338,7 @@ public class ChooseFolder extends K9ListActivity {
                     if (mAccount.getInboxFolderName().equalsIgnoreCase(name)) {
                         folderList.add(getString(R.string.special_mailbox_name_inbox));
                         mHeldInbox = name;
-                    } else if (!K9.ERROR_FOLDER_NAME.equals(name) &&
-                            !account.getOutboxFolderName().equals(name)) {
+                    } else if (!account.getOutboxFolderName().equals(name)) {
                         folderList.add(name);
                     }
 

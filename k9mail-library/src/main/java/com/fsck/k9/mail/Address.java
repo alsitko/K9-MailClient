@@ -2,23 +2,23 @@
 package com.fsck.k9.mail;
 
 import android.support.annotation.VisibleForTesting;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.james.mime4j.MimeException;
+import org.apache.james.mime4j.codec.DecodeMonitor;
 import org.apache.james.mime4j.codec.EncoderUtil;
 import org.apache.james.mime4j.dom.address.Mailbox;
 import org.apache.james.mime4j.dom.address.MailboxList;
-import org.apache.james.mime4j.field.address.AddressBuilder;
+import org.apache.james.mime4j.field.address.DefaultAddressParser;
+import timber.log.Timber;
 
 import android.text.TextUtils;
 import android.text.util.Rfc822Token;
 import android.text.util.Rfc822Tokenizer;
-import android.util.Log;
-
-import static com.fsck.k9.mail.K9MailLib.LOG_TAG;
 
 public class Address implements Serializable {
     private static final Pattern ATOM = Pattern.compile("^(?:[a-zA-Z0-9!#$%&'*+\\-/=?^_`{|}~]|\\s)+$");
@@ -31,7 +31,6 @@ public class Address implements Serializable {
     private String mAddress;
 
     private String mPersonal;
-
 
     public Address(Address address) {
         mAddress = address.mAddress;
@@ -88,7 +87,7 @@ public class Address implements Serializable {
             return null;
         }
 
-        return mAddress.substring(hostIdx+1);
+        return mAddress.substring(hostIdx + 1);
     }
 
     public void setAddress(String address) {
@@ -99,7 +98,8 @@ public class Address implements Serializable {
         return mPersonal;
     }
 
-    public void setPersonal(String personal) {
+    public void setPersonal(String newPersonal) {
+        String personal = newPersonal;
         if ("".equals(personal)) {
             personal = null;
         }
@@ -141,22 +141,16 @@ public class Address implements Serializable {
         if (TextUtils.isEmpty(addressList)) {
             return EMPTY_ADDRESS_ARRAY;
         }
-        List<Address> addresses = new ArrayList<Address>();
+        List<Address> addresses = new ArrayList<>();
         try {
-            MailboxList parsedList =  AddressBuilder.DEFAULT.parseAddressList(addressList).flatten();
+            MailboxList parsedList =  DefaultAddressParser.DEFAULT.parseAddressList(addressList, DecodeMonitor.SILENT).flatten();
 
             for (int i = 0, count = parsedList.size(); i < count; i++) {
-                org.apache.james.mime4j.dom.address.Address address = parsedList.get(i);
-                if (address instanceof Mailbox) {
-                    Mailbox mailbox = (Mailbox)address;
-                    addresses.add(new Address(mailbox.getLocalPart() + "@" + mailbox.getDomain(), mailbox.getName(), false));
-                } else {
-                    Log.e(LOG_TAG, "Unknown address type from Mime4J: "
-                            + address.getClass().toString());
-                }
+                Mailbox mailbox = parsedList.get(i);
+                addresses.add(new Address(mailbox.getLocalPart() + "@" + mailbox.getDomain(), mailbox.getName(), false));
             }
         } catch (MimeException pe) {
-            Log.e(LOG_TAG, "MimeException in Address.parse()", pe);
+            Timber.e(pe, "MimeException in Address.parse()");
             //but we do an silent failover : we just use the given string as name with empty address
             addresses.add(new Address(null, addressList, false));
         }
@@ -313,8 +307,9 @@ public class Address implements Serializable {
     }
 
     /**
-     * Ensures that the given string starts and ends with the double quote character. The string is not modified in any way except to add the
-     * double quote character to start and end if it's not already there.
+     * Ensures that the given string starts and ends with the double quote character.
+     * The string is not modified in any way except to add the double quote character to start
+     * and end if it's not already there.
      * sample -> "sample"
      * "sample" -> "sample"
      * ""sample"" -> ""sample""

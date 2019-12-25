@@ -2,6 +2,7 @@ package com.fsck.k9.mailstore;
 
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -10,17 +11,18 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.text.TextUtils;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.BuildConfig;
 import com.fsck.k9.GlobalsHelper;
 import com.fsck.k9.K9;
+import com.fsck.k9.K9RobolectricTestRunner;
 import com.fsck.k9.R;
 import com.fsck.k9.mail.MessagingException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLog;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
-@RunWith(RobolectricTestRunner.class)
+@RunWith(K9RobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class StoreSchemaDefinitionTest {
     private StoreSchemaDefinition storeSchemaDefinition;
@@ -294,20 +296,31 @@ public class StoreSchemaDefinitionTest {
     }
 
     private List<String> objectsInDatabase(SQLiteDatabase db, String type) {
-        List<String> tables = new ArrayList<>();
-        Cursor cursor = db.rawQuery("SELECT name FROM sqlite_master WHERE type = ?", new String[] { type });
+        List<String> databaseObjects = new ArrayList<>();
+        Cursor cursor = db.rawQuery("SELECT sql FROM sqlite_master WHERE type = ? AND sql IS NOT NULL",
+                new String[] { type });
         try {
-            if (cursor.moveToFirst()) {
-                while (!cursor.isAfterLast()) {
-                    tables.add(cursor.getString(cursor.getColumnIndex("name")));
-                    cursor.moveToNext();
-                }
+            while (cursor.moveToNext()) {
+                String sql = cursor.getString(cursor.getColumnIndex("sql"));
+                String resortedSql = "table".equals(type) ? sortTableColumns(sql) : sql;
+                databaseObjects.add(resortedSql);
             }
         } finally {
             cursor.close();
         }
 
-        return tables;
+        return databaseObjects;
+    }
+
+    private String sortTableColumns(String sql) {
+        int positionOfColumnDefinitions = sql.indexOf('(');
+        String columnDefinitionsSql = sql.substring(positionOfColumnDefinitions + 1, sql.length() - 1);
+        String[] columnDefinitions = columnDefinitionsSql.split(" *, *(?![^(]*\\))");
+        Arrays.sort(columnDefinitions);
+
+        String sqlPrefix = sql.substring(0, positionOfColumnDefinitions + 1);
+        String sortedColumnDefinitionsSql = TextUtils.join(", ", columnDefinitions);
+        return sqlPrefix + sortedColumnDefinitionsSql + ")";
     }
 
     private void insertMessageWithSubject(SQLiteDatabase database, String subject) {
@@ -323,7 +336,7 @@ public class StoreSchemaDefinitionTest {
         LockableDatabase lockableDatabase = createLockableDatabase();
 
         LocalStore localStore = mock(LocalStore.class);
-        localStore.database = lockableDatabase;
+        when(localStore.getDatabase()).thenReturn(lockableDatabase);
         when(localStore.getContext()).thenReturn(context);
         when(localStore.getAccount()).thenReturn(account);
 

@@ -4,9 +4,7 @@ package com.fsck.k9.activity;
 import java.util.ArrayList;
 import java.util.List;
 
-import android.util.Log;
-
-import com.fsck.k9.K9;
+import timber.log.Timber;
 
 
 public class MessageReferenceHelper {
@@ -17,7 +15,7 @@ public class MessageReferenceHelper {
             if (messageReference != null) {
                 messageReferences.add(messageReference);
             } else {
-                Log.w(K9.LOG_TAG, "Invalid message reference: " + messageReferenceString);
+                Timber.w("Invalid message reference: %s", messageReferenceString);
             }
         }
 

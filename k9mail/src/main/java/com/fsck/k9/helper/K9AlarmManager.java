@@ -1,11 +1,11 @@
 package com.fsck.k9.helper;
 
 
-import android.annotation.TargetApi;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.os.Build;
+import android.support.annotation.RequiresApi;
 import android.support.annotation.VisibleForTesting;
 
 import com.fsck.k9.power.DozeChecker;
@@ -36,7 +36,7 @@ public class K9AlarmManager {
         }
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
+    @RequiresApi(Build.VERSION_CODES.M)
     private void setAndAllowWhileIdle(int type, long triggerAtMillis, PendingIntent operation) {
         alarmManager.setAndAllowWhileIdle(type, triggerAtMillis, operation);
     }
