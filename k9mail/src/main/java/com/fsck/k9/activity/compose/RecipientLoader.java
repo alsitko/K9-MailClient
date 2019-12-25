@@ -15,11 +15,13 @@ import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.Email;
 import android.provider.ContactsContract.Contacts;
 import android.provider.ContactsContract.Contacts.Data;
+import android.support.annotation.Nullable;
 
 import com.fsck.k9.R;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.view.RecipientSelectView.Recipient;
 import com.fsck.k9.view.RecipientSelectView.RecipientCryptoStatus;
+import timber.log.Timber;
 
 
 public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
@@ -44,17 +46,35 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
             ContactsContract.CommonDataKinds.Email.CONTACT_ID,
             ContactsContract.Contacts.PHOTO_THUMBNAIL_URI
     };
+
     private static final String SORT_ORDER = "" +
             ContactsContract.CommonDataKinds.Email.TIMES_CONTACTED + " DESC, " +
             ContactsContract.Contacts.SORT_KEY_PRIMARY;
 
-    private static final int INDEX_EMAIL_ADDRESS = 0;
-    private static final int INDEX_EMAIL_STATUS = 1;
+    private static final String[] PROJECTION_NICKNAME = {
+            ContactsContract.Data.CONTACT_ID,
+            ContactsContract.CommonDataKinds.Nickname.NAME
+    };
+
+    private static final int INDEX_CONTACT_ID_FOR_NICKNAME = 0;
+    private static final int INDEX_NICKNAME = 1;
+
+    private static final String[] PROJECTION_CRYPTO_ADDRESSES = {
+            "address",
+            "uid_address"
+    };
+
+    private static final int INDEX_USER_ID = 1;
 
     private static final String[] PROJECTION_CRYPTO_STATUS = {
-            "email_address",
-            "email_status"
+            "address",
+            "uid_key_status",
+            "autocrypt_key_status"
     };
+
+    private static final int INDEX_EMAIL_ADDRESS = 0;
+    private static final int INDEX_EMAIL_STATUS = 1;
+    private static final int INDEX_AUTOCRYPT_STATUS = 2;
 
     private static final int CRYPTO_PROVIDER_STATUS_UNTRUSTED = 1;
     private static final int CRYPTO_PROVIDER_STATUS_TRUSTED = 2;
@@ -65,6 +85,7 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
     private final Uri contactUri;
     private final Uri lookupKeyUri;
     private final String cryptoProvider;
+    private final ContentResolver contentResolver;
 
     private List<Recipient> cachedRecipients;
     private ForceLoadContentObserver observerContact, observerKey;
@@ -77,6 +98,8 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         this.addresses = null;
         this.contactUri = null;
         this.cryptoProvider = cryptoProvider;
+
+        contentResolver = context.getContentResolver();
     }
 
     public RecipientLoader(Context context, String cryptoProvider, Address... addresses) {
@@ -86,6 +109,8 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         this.contactUri = null;
         this.cryptoProvider = cryptoProvider;
         this.lookupKeyUri = null;
+
+        contentResolver = context.getContentResolver();
     }
 
     public RecipientLoader(Context context, String cryptoProvider, Uri contactUri, boolean isLookupKey) {
@@ -95,6 +120,8 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         this.contactUri = isLookupKey ? null : contactUri;
         this.lookupKeyUri = isLookupKey ? contactUri : null;
         this.cryptoProvider = cryptoProvider;
+
+        contentResolver = context.getContentResolver();
     }
 
     @Override
@@ -108,6 +135,10 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
             fillContactDataFromEmailContentUri(contactUri, recipients, recipientMap);
         } else if (query != null) {
             fillContactDataFromQuery(query, recipients, recipientMap);
+
+            if (cryptoProvider != null) {
+                fillContactDataFromCryptoProvider(query, recipients, recipientMap);
+            }
         } else if (lookupKeyUri != null) {
             fillContactDataFromLookupKey(lookupKeyUri, recipients, recipientMap);
         } else {
@@ -125,6 +156,40 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         return recipients;
     }
 
+    private void fillContactDataFromCryptoProvider(String query, List<Recipient> recipients,
+            Map<String, Recipient> recipientMap) {
+        Cursor cursor;
+        try {
+            Uri queryUri = Uri.parse("content://" + cryptoProvider + ".provider.exported/autocrypt_status");
+            cursor = contentResolver.query(queryUri, PROJECTION_CRYPTO_ADDRESSES, null,
+                    new String[] { "%" + query + "%" }, null);
+
+            if (cursor == null) {
+                return;
+            }
+        } catch (SecurityException e) {
+            Timber.e(e, "Couldn't obtain recipients from crypto provider!");
+            return;
+        }
+
+        while (cursor.moveToNext()) {
+            String uid = cursor.getString(INDEX_USER_ID);
+            Address[] addresses = Address.parseUnencoded(uid);
+
+            for (Address address : addresses) {
+                if (recipientMap.containsKey(address.getAddress())) {
+                    continue;
+                }
+
+                Recipient recipient = new Recipient(address);
+                recipients.add(recipient);
+                recipientMap.put(address.getAddress(), recipient);
+            }
+        }
+
+        cursor.close();
+    }
+
     private void fillContactDataFromAddresses(Address[] addresses, List<Recipient> recipients,
             Map<String, Recipient> recipientMap) {
         for (Address address : addresses) {
@@ -137,7 +202,7 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
 
     private void fillContactDataFromEmailContentUri(Uri contactUri, List<Recipient> recipients,
             Map<String, Recipient> recipientMap) {
-        Cursor cursor = getContext().getContentResolver().query(contactUri, PROJECTION, null, null, null);
+        Cursor cursor = contentResolver.query(contactUri, PROJECTION, null, null, null);
 
         if (cursor == null) {
             return;
@@ -149,14 +214,14 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
     private void fillContactDataFromLookupKey(Uri lookupKeyUri, List<Recipient> recipients,
             Map<String, Recipient> recipientMap) {
         // We could use the contact id from the URI directly, but getting it from the lookup key is safer
-        Uri contactContentUri = Contacts.lookupContact(getContext().getContentResolver(), lookupKeyUri);
+        Uri contactContentUri = Contacts.lookupContact(contentResolver, lookupKeyUri);
         if (contactContentUri == null) {
             return;
         }
 
         String contactIdStr = getContactIdFromContactUri(contactContentUri);
 
-        Cursor cursor = getContext().getContentResolver().query(
+        Cursor cursor = contentResolver.query(
                 ContactsContract.CommonDataKinds.Email.CONTENT_URI,
                 PROJECTION, ContactsContract.CommonDataKinds.Email.CONTACT_ID + "=?",
                 new String[] { contactIdStr }, null);
@@ -173,35 +238,106 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
     }
 
 
+    private Cursor getNicknameCursor(String nickname) {
+        nickname = "%" + nickname + "%";
+
+        Uri queryUriForNickname = ContactsContract.Data.CONTENT_URI;
+
+        return contentResolver.query(queryUriForNickname,
+                PROJECTION_NICKNAME,
+                ContactsContract.CommonDataKinds.Nickname.NAME + " LIKE ? AND " +
+                        Data.MIMETYPE + " = ?",
+                new String[] { nickname, ContactsContract.CommonDataKinds.Nickname.CONTENT_ITEM_TYPE },
+                null);
+    }
+
+    @SuppressWarnings("ConstantConditions")
     private void fillContactDataFromQuery(String query, List<Recipient> recipients,
             Map<String, Recipient> recipientMap) {
 
-        ContentResolver contentResolver = getContext().getContentResolver();
+        boolean foundValidCursor = false;
+        foundValidCursor |= fillContactDataFromNickname(query, recipients, recipientMap);
+        foundValidCursor |= fillContactDataFromNameAndEmail(query, recipients, recipientMap);
 
+        if (foundValidCursor) {
+            registerContentObserver();
+        }
+
+    }
+
+    private void registerContentObserver() {
+        if (observerContact != null) {
+            observerContact = new ForceLoadContentObserver();
+            contentResolver.registerContentObserver(Email.CONTENT_URI, false, observerContact);
+        }
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    private boolean fillContactDataFromNickname(String nickname, List<Recipient> recipients,
+            Map<String, Recipient> recipientMap) {
+
+        boolean hasContact = false;
+
+        Uri queryUri = Email.CONTENT_URI;
+
+        Cursor nicknameCursor = getNicknameCursor(nickname);
+
+        if (nicknameCursor == null) {
+            return hasContact;
+        }
+
+        try {
+            while (nicknameCursor.moveToNext()) {
+                String id = nicknameCursor.getString(INDEX_CONTACT_ID_FOR_NICKNAME);
+                String selection = ContactsContract.Data.CONTACT_ID + " = ?";
+                Cursor cursor = contentResolver
+                        .query(queryUri, PROJECTION, selection, new String[] { id }, SORT_ORDER);
+
+                String contactNickname = nicknameCursor.getString(INDEX_NICKNAME);
+                fillContactDataFromCursor(cursor, recipients, recipientMap, contactNickname);
+
+                hasContact = true;
+            }
+        } finally {
+            nicknameCursor.close();
+        }
+
+        return hasContact;
+    }
+
+
+    private boolean fillContactDataFromNameAndEmail(String query, List<Recipient> recipients,
+            Map<String, Recipient> recipientMap) {
         query = "%" + query + "%";
-        Uri queryUri = ContactsContract.CommonDataKinds.Email.CONTENT_URI;
+
+        Uri queryUri = Email.CONTENT_URI;
+
         String selection = Contacts.DISPLAY_NAME_PRIMARY + " LIKE ? " +
                 " OR (" + Email.ADDRESS + " LIKE ? AND " + Data.MIMETYPE + " = '" + Email.CONTENT_ITEM_TYPE + "')";
         String[] selectionArgs = { query, query };
         Cursor cursor = contentResolver.query(queryUri, PROJECTION, selection, selectionArgs, SORT_ORDER);
 
         if (cursor == null) {
-            return;
+            return false;
         }
 
         fillContactDataFromCursor(cursor, recipients, recipientMap);
 
-        if (observerContact != null) {
-            observerContact = new ForceLoadContentObserver();
-            contentResolver.registerContentObserver(queryUri, false, observerContact);
-        }
+        return true;
+
     }
 
     private void fillContactDataFromCursor(Cursor cursor, List<Recipient> recipients,
             Map<String, Recipient> recipientMap) {
+        fillContactDataFromCursor(cursor, recipients, recipientMap, null);
+    }
+
+    private void fillContactDataFromCursor(Cursor cursor, List<Recipient> recipients,
+            Map<String, Recipient> recipientMap, @Nullable String prefilledName) {
 
         while (cursor.moveToNext()) {
-            String name = cursor.getString(INDEX_NAME);
+            String name = prefilledName != null ? prefilledName : cursor.getString(INDEX_NAME);
+
             String email = cursor.getString(INDEX_EMAIL);
             long contactId = cursor.getLong(INDEX_CONTACT_ID);
             String lookupKey = cursor.getString(INDEX_LOOKUP_KEY);
@@ -256,10 +392,9 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         String[] recipientAddresses = recipientList.toArray(new String[recipientList.size()]);
 
         Cursor cursor;
-        Uri queryUri = Uri.parse("content://" + cryptoProvider + ".provider.exported/email_status");
+        Uri queryUri = Uri.parse("content://" + cryptoProvider + ".provider.exported/autocrypt_status");
         try {
-            cursor = getContext().getContentResolver().query(queryUri, PROJECTION_CRYPTO_STATUS, null,
-                    recipientAddresses, null);
+            cursor = contentResolver.query(queryUri, PROJECTION_CRYPTO_STATUS, null, recipientAddresses, null);
         } catch (SecurityException e) {
             // TODO escalate error to crypto status?
             return;
@@ -273,13 +408,16 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
 
         while (cursor.moveToNext()) {
             String email = cursor.getString(INDEX_EMAIL_ADDRESS);
-            int status = cursor.getInt(INDEX_EMAIL_STATUS);
+            int uidStatus = cursor.getInt(INDEX_EMAIL_STATUS);
+            int autocryptStatus = cursor.getInt(INDEX_AUTOCRYPT_STATUS);
+
+            int effectiveStatus = uidStatus > autocryptStatus ? uidStatus : autocryptStatus;
 
             for (Address address : Address.parseUnencoded(email)) {
                 String emailAddress = address.getAddress();
                 if (recipientMap.containsKey(emailAddress)) {
                     Recipient recipient = recipientMap.get(emailAddress);
-                    switch (status) {
+                    switch (effectiveStatus) {
                         case CRYPTO_PROVIDER_STATUS_UNTRUSTED: {
                             if (recipient.getCryptoStatus() == RecipientCryptoStatus.UNAVAILABLE) {
                                 recipient.setCryptoStatus(RecipientCryptoStatus.AVAILABLE_UNTRUSTED);
@@ -300,7 +438,7 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
 
         if (observerKey != null) {
             observerKey = new ForceLoadContentObserver();
-            getContext().getContentResolver().registerContentObserver(queryUri, false, observerKey);
+            contentResolver.registerContentObserver(queryUri, false, observerKey);
         }
     }
 
@@ -336,10 +474,10 @@ public class RecipientLoader extends AsyncTaskLoader<List<Recipient>> {
         super.onAbandon();
 
         if (observerKey != null) {
-            getContext().getContentResolver().unregisterContentObserver(observerKey);
+            contentResolver.unregisterContentObserver(observerKey);
         }
         if (observerContact != null) {
-            getContext().getContentResolver().unregisterContentObserver(observerContact);
+            contentResolver.unregisterContentObserver(observerContact);
         }
     }
 }

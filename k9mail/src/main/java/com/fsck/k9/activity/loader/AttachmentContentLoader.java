@@ -7,9 +7,8 @@ import java.io.InputStream;
 
 import android.content.AsyncTaskLoader;
 import android.content.Context;
-import android.util.Log;
+import timber.log.Timber;
 
-import com.fsck.k9.K9;
 import com.fsck.k9.activity.misc.Attachment;
 
 import com.fsck.k9.activity.misc.Attachment.LoadingState;
@@ -58,9 +57,7 @@ public class AttachmentContentLoader extends AsyncTaskLoader<Attachment> {
             File file = File.createTempFile(FILENAME_PREFIX, null, context.getCacheDir());
             file.deleteOnExit();
 
-            if (K9.DEBUG) {
-                Log.v(K9.LOG_TAG, "Saving attachment to " + file.getAbsolutePath());
-            }
+            Timber.v("Saving attachment to %s", file.getAbsolutePath());
 
             SafeContentResolver safeContentResolver = SafeContentResolverCompat.newInstance(context);
             InputStream in = safeContentResolver.openInputStream(sourceAttachment.uri);
@@ -78,7 +75,7 @@ public class AttachmentContentLoader extends AsyncTaskLoader<Attachment> {
             cachedResultAttachment = sourceAttachment.deriveWithLoadComplete(file.getAbsolutePath());
             return cachedResultAttachment;
         } catch (IOException e) {
-            Log.e(K9.LOG_TAG, "Error saving attachment!", e);
+            Timber.e(e, "Error saving attachment!");
         }
 
         cachedResultAttachment = sourceAttachment.deriveWithLoadCancelled();

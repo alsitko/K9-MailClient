@@ -7,9 +7,8 @@ import java.util.List;
 import android.content.ContentValues;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
-import android.util.Log;
+import timber.log.Timber;
 
-import com.fsck.k9.K9;
 import com.fsck.k9.mail.FetchProfile;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mailstore.LocalFolder;
@@ -38,18 +37,18 @@ class MigrationTo55 {
 
                     String fulltext = fulltextCreator.createFulltext(localMessage);
                     if (!TextUtils.isEmpty(fulltext)) {
-                        Log.d(K9.LOG_TAG, "fulltext for msg id " + localMessage.getId() + " is " + fulltext.length() + " chars long");
+                        Timber.d("fulltext for msg id %d is %d chars long", localMessage.getDatabaseId(), fulltext.length());
                         cv.clear();
-                        cv.put("docid", localMessage.getId());
+                        cv.put("docid", localMessage.getDatabaseId());
                         cv.put("fulltext", fulltext);
                         db.insert("messages_fulltext", null, cv);
                     } else {
-                        Log.d(K9.LOG_TAG, "no fulltext for msg id " + localMessage.getId() + " :(");
+                        Timber.d("no fulltext for msg id %d :(", localMessage.getDatabaseId());
                     }
                 }
             }
         } catch (MessagingException e) {
-            Log.e(K9.LOG_TAG, "error indexing fulltext - skipping rest, fts index is incomplete!", e);
+            Timber.e(e, "error indexing fulltext - skipping rest, fts index is incomplete!");
         }
     }
 }

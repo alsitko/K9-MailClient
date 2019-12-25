@@ -6,9 +6,8 @@ import android.content.Context;
 import android.content.IntentFilter;
 import android.os.Build;
 import android.os.PowerManager;
-import android.util.Log;
 
-import com.fsck.k9.K9;
+import timber.log.Timber;
 
 
 public abstract class DeviceIdleManager {
@@ -68,14 +67,14 @@ public abstract class DeviceIdleManager {
 
         @Override
         public void registerReceiver() {
-            Log.v(K9.LOG_TAG, "Registering DeviceIdleReceiver");
+            Timber.v("Registering DeviceIdleReceiver");
             registered = true;
             context.registerReceiver(deviceIdleReceiver, intentFilter);
         }
 
         @Override
         public void unregisterReceiver() {
-            Log.v(K9.LOG_TAG, "Unregistering DeviceIdleReceiver");
+            Timber.v("Unregistering DeviceIdleReceiver");
             if (registered) {
                 context.unregisterReceiver(deviceIdleReceiver);
                 registered = false;

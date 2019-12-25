@@ -12,11 +12,13 @@ import java.util.Set;
 import java.util.TimeZone;
 
 import com.fsck.k9.mail.Body;
+import com.fsck.k9.mail.DefaultBodyFactory;
 import com.fsck.k9.mail.FetchProfile;
 import com.fsck.k9.mail.FetchProfile.Item;
 import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.Folder.FolderType;
+import com.fsck.k9.mail.K9LibRobolectricTestRunner;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessageRetrievalListener;
 import com.fsck.k9.mail.MessagingException;
@@ -32,9 +34,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
-import org.robolectric.annotation.Config;
 
 import static com.fsck.k9.mail.Folder.OPEN_MODE_RO;
 import static com.fsck.k9.mail.Folder.OPEN_MODE_RW;
@@ -58,8 +58,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.internal.util.collections.Sets.newSet;
 
 
-@RunWith(RobolectricTestRunner.class)
-@Config(manifest = Config.NONE, sdk = 21)
+@RunWith(K9LibRobolectricTestRunner.class)
 public class ImapFolderTest {
     private ImapStore imapStore;
     private ImapConnection imapConnection;
@@ -936,7 +935,7 @@ public class ImapFolderTest {
         Part part = createPart("TEXT");
         when(imapConnection.readResponse(any(ImapResponseCallback.class))).thenReturn(createImapResponse("x OK"));
 
-        folder.fetchPart(message, part, null);
+        folder.fetchPart(message, part, null, null);
 
         verify(imapConnection).sendCommand("UID FETCH 1 (UID BODY.PEEK[TEXT]<0.4096>)", false);
     }
@@ -950,7 +949,7 @@ public class ImapFolderTest {
         Part part = createPart("1.1");
         when(imapConnection.readResponse(any(ImapResponseCallback.class))).thenReturn(createImapResponse("x OK"));
 
-        folder.fetchPart(message, part, null);
+        folder.fetchPart(message, part, null, null);
 
         verify(imapConnection).sendCommand("UID FETCH 1 (UID BODY.PEEK[1.1])", false);
     }
@@ -964,7 +963,7 @@ public class ImapFolderTest {
         Part part = createPlainTextPart("1.1");
         setupSingleFetchResponseToCallback();
 
-        folder.fetchPart(message, part, null);
+        folder.fetchPart(message, part, null, new DefaultBodyFactory());
 
         ArgumentCaptor<Body> bodyArgumentCaptor = ArgumentCaptor.forClass(Body.class);
         verify(part).setBody(bodyArgumentCaptor.capture());

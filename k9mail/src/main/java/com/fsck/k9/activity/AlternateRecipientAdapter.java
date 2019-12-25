@@ -17,11 +17,11 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.QuickContactBadge;
 import android.widget.TextView;
 
 import com.fsck.k9.R;
 import com.fsck.k9.activity.compose.RecipientAdapter;
+import com.fsck.k9.ui.ContactBadge;
 import com.fsck.k9.view.RecipientSelectView.Recipient;
 import com.fsck.k9.view.ThemeUtils;
 
@@ -36,6 +36,7 @@ public class AlternateRecipientAdapter extends BaseAdapter {
     private final AlternateRecipientListener listener;
     private List<Recipient> recipients;
     private Recipient currentRecipient;
+    private boolean showAdvancedInfo;
 
 
     public AlternateRecipientAdapter(Context context, AlternateRecipientListener listener) {
@@ -167,6 +168,14 @@ public class AlternateRecipientAdapter extends BaseAdapter {
     }
 
     private void configureCryptoStatusView(RecipientTokenHolder holder, Recipient recipient) {
+        if (showAdvancedInfo) {
+            configureCryptoStatusViewAdvanced(holder, recipient);
+        } else {
+            bindCryptoSimple(holder, recipient);
+        }
+    }
+
+    private void configureCryptoStatusViewAdvanced(RecipientTokenHolder holder, Recipient recipient) {
         switch (recipient.getCryptoStatus()) {
             case AVAILABLE_TRUSTED: {
                 setCryptoStatusView(holder, R.drawable.status_lock_dots_3, R.attr.openpgp_green);
@@ -202,17 +211,37 @@ public class AlternateRecipientAdapter extends BaseAdapter {
         holder.itemCryptoStatus.setVisibility(View.VISIBLE);
     }
 
+    private void bindCryptoSimple(RecipientTokenHolder holder, Recipient recipient) {
+        holder.itemCryptoStatus.setVisibility(View.GONE);
+        switch (recipient.getCryptoStatus()) {
+            case AVAILABLE_TRUSTED:
+            case AVAILABLE_UNTRUSTED: {
+                holder.itemCryptoStatusSimple.setVisibility(View.VISIBLE);
+                break;
+            }
+            case UNAVAILABLE:
+            case UNDEFINED: {
+                holder.itemCryptoStatusSimple.setVisibility(View.GONE);
+                break;
+            }
+        }
+    }
+
+    public void setShowAdvancedInfo(boolean showAdvancedInfo) {
+        this.showAdvancedInfo = showAdvancedInfo;
+    }
 
     private static class RecipientTokenHolder {
         public final View layoutHeader, layoutItem;
         public final TextView headerName;
         public final TextView headerAddressLabel;
-        public final QuickContactBadge headerPhoto;
+        public final ContactBadge headerPhoto;
         public final View headerRemove;
         public final TextView itemAddress;
         public final TextView itemAddressLabel;
         public final View itemCryptoStatus;
         public final ImageView itemCryptoStatusIcon;
+        public final ImageView itemCryptoStatusSimple;
 
 
         public RecipientTokenHolder(View view) {
@@ -221,13 +250,15 @@ public class AlternateRecipientAdapter extends BaseAdapter {
 
             headerName = (TextView) view.findViewById(R.id.alternate_header_name);
             headerAddressLabel = (TextView) view.findViewById(R.id.alternate_header_label);
-            headerPhoto = (QuickContactBadge) view.findViewById(R.id.alternate_contact_photo);
+            headerPhoto = (ContactBadge) view.findViewById(R.id.alternate_contact_photo);
             headerRemove = view.findViewById(R.id.alternate_remove);
 
             itemAddress = (TextView) view.findViewById(R.id.alternate_address);
             itemAddressLabel = (TextView) view.findViewById(R.id.alternate_address_label);
             itemCryptoStatus = view.findViewById(R.id.alternate_crypto_status);
             itemCryptoStatusIcon = (ImageView) view.findViewById(R.id.alternate_crypto_status_icon);
+
+            itemCryptoStatusSimple = (ImageView) view.findViewById(R.id.alternate_crypto_status_simple);
         }
 
         public void setShowAsHeader(boolean isHeader) {

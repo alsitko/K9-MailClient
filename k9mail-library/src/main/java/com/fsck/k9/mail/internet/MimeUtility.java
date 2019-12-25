@@ -4,12 +4,12 @@ package com.fsck.k9.mail.internet;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.fsck.k9.mail.Body;
 import com.fsck.k9.mail.BodyPart;
@@ -17,12 +17,10 @@ import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Multipart;
 import com.fsck.k9.mail.Part;
-import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.codec.Base64InputStream;
 import org.apache.james.mime4j.codec.QuotedPrintableInputStream;
 import org.apache.james.mime4j.util.MimeUtil;
-
-import static com.fsck.k9.mail.K9MailLib.LOG_TAG;
+import timber.log.Timber;
 
 
 public class MimeUtility {
@@ -956,6 +954,23 @@ public class MimeUtility {
         return null;
     }
 
+    public static Map<String,String> getAllHeaderParameters(String headerValue) {
+        Map<String,String> result = new HashMap<>();
+
+        headerValue = headerValue.replaceAll("\r|\n", "");
+        String[] parts = headerValue.split(";");
+        for (String part : parts) {
+            String[] partParts = part.split("=", 2);
+            if (partParts.length == 2) {
+                String parameterName = partParts[0].trim().toLowerCase(Locale.US);
+                String parameterValue = partParts[1].trim();
+                result.put(parameterName, parameterValue);
+            }
+        }
+        return result;
+    }
+
+
     public static Part findFirstPartByMimeType(Part part, String mimeType) {
         if (part.getBody() instanceof Multipart) {
             Multipart multipart = (Multipart)part.getBody();
@@ -985,30 +1000,6 @@ public class MimeUtility {
 
     public static boolean isDefaultMimeType(String mimeType) {
         return isSameMimeType(mimeType, DEFAULT_ATTACHMENT_MIME_TYPE);
-    }
-
-    public static Body createBody(InputStream in, String contentTransferEncoding, String contentType)
-            throws IOException {
-
-        if (contentTransferEncoding != null) {
-            contentTransferEncoding = MimeUtility.getHeaderParameter(contentTransferEncoding, null);
-        }
-
-        BinaryTempFileBody tempBody;
-        if (MimeUtil.isMessage(contentType)) {
-            tempBody = new BinaryTempFileMessageBody(contentTransferEncoding);
-        } else {
-            tempBody = new BinaryTempFileBody(contentTransferEncoding);
-        }
-
-        OutputStream out = tempBody.getOutputStream();
-        try {
-            IOUtils.copy(in, out);
-        } finally {
-            out.close();
-        }
-
-        return tempBody;
     }
 
     /**
@@ -1047,7 +1038,7 @@ public class MimeUtility {
                     }
                 };
             } else {
-                Log.w(LOG_TAG, "Unsupported encoding: " + encoding);
+                Timber.w("Unsupported encoding: %s", encoding);
                 inputStream = rawInputStream;
             }
         } else {

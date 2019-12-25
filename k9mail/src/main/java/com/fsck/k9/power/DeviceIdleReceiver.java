@@ -1,19 +1,18 @@
 package com.fsck.k9.power;
 
 
-import android.annotation.TargetApi;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.PowerManager;
-import android.util.Log;
+import android.support.annotation.RequiresApi;
 
-import com.fsck.k9.K9;
 import com.fsck.k9.service.MailService;
+import timber.log.Timber;
 
 
-@TargetApi(Build.VERSION_CODES.M)
+@RequiresApi(api = Build.VERSION_CODES.M)
 class DeviceIdleReceiver extends BroadcastReceiver {
     private final PowerManager powerManager;
 
@@ -25,7 +24,7 @@ class DeviceIdleReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         boolean deviceInIdleMode = powerManager.isDeviceIdleMode();
-        Log.v(K9.LOG_TAG, "Device idle mode changed. Idle: " + deviceInIdleMode);
+        Timber.v("Device idle mode changed. Idle: %b", deviceInIdleMode);
 
         if (!deviceInIdleMode) {
             MailService.actionReset(context, null);

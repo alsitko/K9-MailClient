@@ -33,7 +33,7 @@
                     android:layout_width="fill_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/message_compose_subject_hint"
-                    android:inputType="textEmailSubject|textAutoCorrect|textCapSentences|textImeMultiLine"
+                    android:inputType="textEmailSubject|textAutoCorrect|textCapSentences"
                     android:imeOptions="actionNext"
                     android:singleLine="true"
                     android:background="@android:color/transparent"
@@ -62,8 +62,6 @@
                  EditText won't properly grow in height while the user is typing the message -->
             <view
                 class="com.fsck.k9.ui.EolConvertingEditText"
-                android:layout_marginLeft="8dip"
-                android:layout_marginRight="8dip"
                 android:id="@+id/message_content"
                 android:layout_width="fill_parent"
                 android:layout_height="wrap_content"
@@ -78,8 +76,6 @@
 
             <view
                 class="com.fsck.k9.ui.EolConvertingEditText"
-                android:layout_marginLeft="8dip"
-                android:layout_marginRight="8dip"
                 android:id="@+id/upper_signature"
                 android:layout_width="fill_parent"
                 android:layout_height="wrap_content"
@@ -90,9 +86,6 @@
                 android:textAppearance="?android:attr/textAppearanceMedium" />
 
             <Button
-                android:background="?android:selectableItemBackground"
-                android:layout_marginLeft="8dip"
-                android:layout_marginRight="8dip"
                 android:id="@+id/quoted_text_show"
                 android:text="@string/message_compose_show_quoted_text_action"
                 android:textSize="16sp"
@@ -118,15 +111,11 @@
                     android:textAppearance="?android:attr/textAppearanceMedium" />
 
                 <com.fsck.k9.view.MessageWebView
-                    android:layout_marginLeft="12dip"
-                    android:layout_marginRight="12dip"
                     android:id="@+id/quoted_html"
                     android:layout_height="wrap_content"
                     android:layout_width="fill_parent" />
 
                 <LinearLayout
-                    android:layout_marginLeft="8dip"
-                    android:layout_marginRight="8dip"
                     android:id="@+id/quoted_text_buttons"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -139,14 +128,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dip"
-                        android:background="@drawable/ic_pencil_grey" />
+                        android:background="@drawable/btn_edit" />
 
                     <ImageButton
                         android:id="@+id/quoted_text_delete"
                         android:contentDescription="@string/message_compose_description_delete_quoted_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/ic_window_close_grey" />
+                        android:background="@drawable/btn_dialog" />
 
                 </LinearLayout>
 
@@ -154,8 +143,6 @@
 
             <view
                 class="com.fsck.k9.ui.EolConvertingEditText"
-                android:layout_marginLeft="12dip"
-                android:layout_marginRight="12dip"
                 android:id="@+id/lower_signature"
                 android:layout_width="fill_parent"
                 android:layout_height="wrap_content"

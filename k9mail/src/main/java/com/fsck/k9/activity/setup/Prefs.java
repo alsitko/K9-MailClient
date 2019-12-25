@@ -1,5 +1,6 @@
 package com.fsck.k9.activity.setup;
 
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -7,7 +8,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import android.app.Dialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnCancelListener;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -17,11 +21,8 @@ import android.preference.Preference;
 import android.preference.Preference.OnPreferenceClickListener;
 import android.preference.PreferenceScreen;
 import android.text.TextUtils;
-import android.view.View;
-import android.widget.Button;
 import android.widget.Toast;
 
-import com.fsck.k9.ColorPicker;
 import com.fsck.k9.K9;
 import com.fsck.k9.K9.NotificationHideSubject;
 import com.fsck.k9.K9.NotificationQuickDelete;
@@ -37,8 +38,9 @@ import com.fsck.k9.preferences.CheckBoxListPreference;
 import com.fsck.k9.preferences.Storage;
 import com.fsck.k9.preferences.StorageEditor;
 import com.fsck.k9.preferences.TimePickerPreference;
-
 import com.fsck.k9.service.MailService;
+import com.fsck.k9.ui.dialog.ApgDeprecationWarningDialog;
+import org.openintents.openpgp.util.OpenPgpAppPreference;
 
 
 public class Prefs extends K9PreferenceActivity {
@@ -54,12 +56,12 @@ public class Prefs extends K9PreferenceActivity {
     private static final String PREFERENCE_LANGUAGE = "language";
     private static final String PREFERENCE_THEME = "theme";
     private static final String PREFERENCE_MESSAGE_VIEW_THEME = "messageViewTheme";
-    private static final String PREFERENCE_FIXED_MESSAGE_THEME = "fixedMessageViewTheme";
-    private static final String PREFERENCE_COMPOSER_THEME = "messageComposeTheme";
+    private static final String PREFERENCE_FIXED_MESSAGE_THEME = "fixed_message_view_theme";
+    private static final String PREFERENCE_COMPOSER_THEME = "message_compose_theme";
     private static final String PREFERENCE_FONT_SIZE = "font_size";
     private static final String PREFERENCE_ANIMATIONS = "animations";
     private static final String PREFERENCE_GESTURES = "gestures";
-    private static final String PREFERENCE_VOLUME_NAVIGATION = "volumeNavigation";
+    private static final String PREFERENCE_VOLUME_NAVIGATION = "volume_navigation";
     private static final String PREFERENCE_START_INTEGRATED_INBOX = "start_integrated_inbox";
     private static final String PREFERENCE_CONFIRM_ACTIONS = "confirm_actions";
     private static final String PREFERENCE_NOTIFICATION_HIDE_SUBJECT = "notification_hide_subject";
@@ -91,6 +93,9 @@ public class Prefs extends K9PreferenceActivity {
     private static final String PREFERENCE_HIDE_USERAGENT = "privacy_hide_useragent";
     private static final String PREFERENCE_HIDE_TIMEZONE = "privacy_hide_timezone";
 
+    private static final String PREFERENCE_OPENPGP_PROVIDER = "openpgp_provider";
+    private static final String PREFERENCE_OPENPGP_SUPPORT_SIGN_ONLY = "openpgp_support_sign_only";
+
     private static final String PREFERENCE_AUTOFIT_WIDTH = "messageview_autofit_width";
     private static final String PREFERENCE_BACKGROUND_OPS = "background_ops";
     private static final String PREFERENCE_DEBUG_LOGGING = "debug_logging";
@@ -102,7 +107,11 @@ public class Prefs extends K9PreferenceActivity {
     private static final String PREFERENCE_FOLDERLIST_WRAP_NAME = "folderlist_wrap_folder_name";
     private static final String PREFERENCE_SPLITVIEW_MODE = "splitview_mode";
 
+    private static final String APG_PROVIDER_PLACEHOLDER = "apg-placeholder";
+
     private static final int ACTIVITY_CHOOSE_FOLDER = 1;
+
+    private static final int DIALOG_APG_DEPRECATION_WARNING = 1;
 
     // Named indices for the mVisibleRefileActions field
     private static final int VISIBLE_REFILE_ACTIONS_DELETE = 0;
@@ -146,10 +155,13 @@ public class Prefs extends K9PreferenceActivity {
     private CheckBoxPreference mWrapFolderNames;
     private CheckBoxListPreference mVisibleRefileActions;
 
+    private OpenPgpAppPreference mOpenPgpProvider;
+    private CheckBoxPreference mOpenPgpSupportSignOnly;
+
     private CheckBoxPreference mQuietTimeEnabled;
     private CheckBoxPreference mDisableNotificationDuringQuietTime;
-    private TimePickerPreference mQuietTimeStarts;
-    private TimePickerPreference mQuietTimeEnds;
+    private com.fsck.k9.preferences.TimePickerPreference mQuietTimeStarts;
+    private com.fsck.k9.preferences.TimePickerPreference mQuietTimeEnds;
     private ListPreference mNotificationQuickDelete;
     private ListPreference mLockScreenNotificationVisibility;
     private Preference mAttachmentPathPreference;
@@ -194,7 +206,7 @@ public class Prefs extends K9PreferenceActivity {
                 themeIdToName(K9.getK9ComposerThemeSetting()));
 
         findPreference(PREFERENCE_FONT_SIZE).setOnPreferenceClickListener(
-        new OnPreferenceClickListener() {
+        new Preference.OnPreferenceClickListener() {
             public boolean onPreferenceClick(Preference preference) {
                 onFontSizeSettings();
                 return true;
@@ -367,10 +379,32 @@ public class Prefs extends K9PreferenceActivity {
         mHideUserAgent = (CheckBoxPreference)findPreference(PREFERENCE_HIDE_USERAGENT);
         mHideTimeZone = (CheckBoxPreference)findPreference(PREFERENCE_HIDE_TIMEZONE);
 
-        mDebugLogging.setChecked(K9.DEBUG);
+        mDebugLogging.setChecked(K9.isDebug());
         mSensitiveLogging.setChecked(K9.DEBUG_SENSITIVE);
         mHideUserAgent.setChecked(K9.hideUserAgent());
         mHideTimeZone.setChecked(K9.hideTimeZone());
+
+        mOpenPgpProvider = (OpenPgpAppPreference) findPreference(PREFERENCE_OPENPGP_PROVIDER);
+        mOpenPgpProvider.setValue(K9.getOpenPgpProvider());
+        if (OpenPgpAppPreference.isApgInstalled(getApplicationContext())) {
+            mOpenPgpProvider.addLegacyProvider(
+                    APG_PROVIDER_PLACEHOLDER, getString(R.string.apg), R.drawable.ic_apg_small);
+        }
+        mOpenPgpProvider.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+            public boolean onPreferenceChange(Preference preference, Object newValue) {
+                String value = newValue.toString();
+                if (APG_PROVIDER_PLACEHOLDER.equals(value)) {
+                    mOpenPgpProvider.setValue("");
+                    showDialog(DIALOG_APG_DEPRECATION_WARNING);
+                } else {
+                    mOpenPgpProvider.setValue(value);
+                }
+                return false;
+            }
+        });
+
+        mOpenPgpSupportSignOnly = (CheckBoxPreference) findPreference(PREFERENCE_OPENPGP_SUPPORT_SIGN_ONLY);
+        mOpenPgpSupportSignOnly.setChecked(K9.getOpenPgpSupportSignOnly());
 
         mAttachmentPathPreference = findPreference(PREFERENCE_ATTACHMENT_DEF_PATH);
         mAttachmentPathPreference.setSummary(K9.getAttachmentDefaultPath());
@@ -519,13 +553,16 @@ public class Prefs extends K9PreferenceActivity {
         K9.setAttachmentDefaultPath(mAttachmentPathPreference.getSummary().toString());
         boolean needsRefresh = K9.setBackgroundOps(mBackgroundOps.getValue());
 
-        if (!K9.DEBUG && mDebugLogging.isChecked()) {
+        if (!K9.isDebug() && mDebugLogging.isChecked()) {
             Toast.makeText(this, R.string.debug_logging_enabled, Toast.LENGTH_LONG).show();
         }
-        K9.DEBUG = mDebugLogging.isChecked();
+        K9.setDebug(mDebugLogging.isChecked());
         K9.DEBUG_SENSITIVE = mSensitiveLogging.isChecked();
         K9.setHideUserAgent(mHideUserAgent.isChecked());
         K9.setHideTimeZone(mHideTimeZone.isChecked());
+
+        K9.setOpenPgpProvider(mOpenPgpProvider.getValue());
+        K9.setOpenPgpSupportSignOnly(mOpenPgpSupportSignOnly.isChecked());
 
         StorageEditor editor = storage.edit();
         K9.save(editor);
@@ -547,35 +584,31 @@ public class Prefs extends K9PreferenceActivity {
     }
 
     private void onChooseContactNameColor() {
-        final ColorPicker cp = new ColorPicker(Prefs.this, 33, 150, 243);
-
-                /* Show color picker dialog */
-        cp.show();
-
-    /* On Click listener for the dialog, when the user select the color */
-        Button okColor = (Button)cp.findViewById(R.id.okColorButton);
-        okColor.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                final int selectedColorR;
-                final int selectedColorG;
-                final int selectedColorB;
-                final int selectedColorRGB;
-
-
-                /* You can get single channel (value 0-255) */
-                selectedColorR = cp.getRed();
-                selectedColorG = cp.getGreen();
-                selectedColorB = cp.getBlue();
-
-                /* Or the android RGB Color (see the android Color class reference) */
-                selectedColorRGB = cp.getColor();
-                K9.setContactNameColor(selectedColorRGB);
-
-                cp.dismiss();
+        new ColorPickerDialog(this, new ColorPickerDialog.OnColorChangedListener() {
+            public void colorChanged(int color) {
+                K9.setContactNameColor(color);
             }
-        });
+        },
+        K9.getContactNameColor()).show();
+    }
+
+    @Override
+    protected Dialog onCreateDialog(int id) {
+        Dialog dialog = null;
+        switch (id) {
+            case DIALOG_APG_DEPRECATION_WARNING: {
+                dialog = new ApgDeprecationWarningDialog(this);
+                dialog.setOnCancelListener(new OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface dialog) {
+                        mOpenPgpProvider.show();
+                    }
+                });
+                break;
+            }
+
+        }
+        return dialog;
     }
 
     @Override

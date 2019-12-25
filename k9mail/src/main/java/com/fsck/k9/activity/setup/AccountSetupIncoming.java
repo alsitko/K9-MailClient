@@ -1,6 +1,12 @@
 
 package com.fsck.k9.activity.setup;
 
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.HashMap;
+import java.util.Map;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -8,37 +14,41 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.method.DigitsKeyListener;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.*;
+import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
+import android.widget.EditText;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import com.fsck.k9.*;
+import com.fsck.k9.Account;
 import com.fsck.k9.Account.FolderMode;
-import com.fsck.k9.mail.NetworkType;
+import com.fsck.k9.Preferences;
+import com.fsck.k9.R;
+import com.fsck.k9.account.AccountCreator;
 import com.fsck.k9.activity.K9Activity;
 import com.fsck.k9.activity.setup.AccountSetupCheckSettings.CheckDirection;
 import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.AuthType;
 import com.fsck.k9.mail.ConnectionSecurity;
+import com.fsck.k9.mail.NetworkType;
 import com.fsck.k9.mail.ServerSettings;
 import com.fsck.k9.mail.ServerSettings.Type;
 import com.fsck.k9.mail.Store;
-import com.fsck.k9.mail.Transport;
+import com.fsck.k9.mail.TransportUris;
 import com.fsck.k9.mail.store.RemoteStore;
 import com.fsck.k9.mail.store.imap.ImapStoreSettings;
 import com.fsck.k9.mail.store.webdav.WebDavStoreSettings;
-import com.fsck.k9.account.AccountCreator;
 import com.fsck.k9.service.MailService;
 import com.fsck.k9.view.ClientCertificateSpinner;
 import com.fsck.k9.view.ClientCertificateSpinner.OnClientCertificateChangedListener;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.Map;
+import timber.log.Timber;
 
 public class AccountSetupIncoming extends K9Activity implements OnClickListener {
     private static final String EXTRA_ACCOUNT = "account";
@@ -73,8 +83,6 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
     private CheckBox mSubscribedFoldersOnly;
     private AuthTypeAdapter mAuthTypeAdapter;
     private ConnectionSecurity[] mConnectionSecurityChoices = ConnectionSecurity.values();
-    private boolean securityTypeAdapterPositionRestoredFromSavedState;
-    private int initialSecurityTypeAdapterPosition;
 
     public static void actionIncomingSettings(Activity context, Account account, boolean makeDefault) {
         Intent i = new Intent(context, AccountSetupIncoming.class);
@@ -253,7 +261,6 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
             // Select currently configured security type
             if (savedInstanceState == null) {
                 mCurrentSecurityTypeViewPosition = securityTypesAdapter.getConnectionSecurityPosition(settings.connectionSecurity);
-                securityTypeAdapterPositionRestoredFromSavedState = false;
             } else {
 
                 /*
@@ -265,9 +272,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
                  * once again onItemSelected() will not be called.
                  */
                 mCurrentSecurityTypeViewPosition = savedInstanceState.getInt(STATE_SECURITY_TYPE_POSITION);
-                securityTypeAdapterPositionRestoredFromSavedState = true;
             }
-            initialSecurityTypeAdapterPosition = mCurrentSecurityTypeViewPosition;
             mSecurityTypeView.setSelection(mCurrentSecurityTypeViewPosition, false);
 
             updateAuthPlainTextFromSecurityType(settings.connectionSecurity);
@@ -499,7 +504,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
                     Store store = mAccount.getRemoteStore();
                     isPushCapable = store.isPushCapable();
                 } catch (Exception e) {
-                    Log.e(K9.LOG_TAG, "Could not get remote store", e);
+                    Timber.e(e, "Could not get remote store");
                 }
                 if (isPushCapable && mAccount.getFolderPushMode() != FolderMode.NONE) {
                     MailService.actionRestartPushers(this, null);
@@ -526,7 +531,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
                     URI oldUri = new URI(mAccount.getTransportUri());
                     ServerSettings transportServer = new ServerSettings(Type.SMTP, oldUri.getHost(), oldUri.getPort(),
                             ConnectionSecurity.SSL_TLS_REQUIRED, authType, username, password, clientCertificateAlias);
-                    String transportUri = Transport.createTransportUri(transportServer);
+                    String transportUri = TransportUris.createTransportUri(transportServer);
                     mAccount.setTransportUri(transportUri);
                 } catch (URISyntaxException use) {
                     /*
@@ -607,7 +612,7 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
     }
 
     private void failure(Exception use) {
-        Log.e(K9.LOG_TAG, "Failure", use);
+        Timber.e(use, "Failure");
         String toastText = getString(R.string.account_setup_bad_uri, use.getMessage());
 
         Toast toast = Toast.makeText(getApplication(), toastText, Toast.LENGTH_LONG);
@@ -647,14 +652,6 @@ public class AccountSetupIncoming extends K9Activity implements OnClickListener 
 
     private ConnectionSecurity getSelectedSecurity() {
         ConnectionSecurityHolder holder = (ConnectionSecurityHolder) mSecurityTypeView.getSelectedItem();
-        if (holder == null) {
-            throw new AssertionError("getSelectedItem() returned null. " +
-                    "Selected item position: " + mSecurityTypeView.getSelectedItemPosition() + ", " +
-                    "initial selected item position: " + initialSecurityTypeAdapterPosition + ", " +
-                    "mCurrentSecurityTypeViewPosition: " + mCurrentSecurityTypeViewPosition + ", " +
-                    "position restored from saved state: " + securityTypeAdapterPositionRestoredFromSavedState);
-        }
-        
         return holder.connectionSecurity;
     }
 }

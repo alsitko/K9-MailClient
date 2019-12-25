@@ -5,7 +5,49 @@
      Locale specific versions are kept in res/xml-<locale qualifier>/changelog.xml.
 -->
 <changelog>
-    <release version="5.208" versioncode="23271">
+    <release version="5.403" versioncode="23630">
+        <change>Fixed bug that caused 'Quiet Time' to behave erratically</change>
+    </release>
+    <release version="5.402" versioncode="23620">
+        <change>Fixed display issues with certain messages</change>
+    </release>
+    <release version="5.401" versioncode="23610">
+        <change>Fixed bug that lead to some messages showing as empty</change>
+    </release>
+    <release version="5.400" versioncode="23600">
+        <change>Avoid crash on Android 8.1</change>
+        <change>Updated translations</change>
+        <change>Added Albanian translation</change>
+    </release>
+    <release version="5.304" versioncode="23540">
+        <change>Fixed bug that could cause OpenPGP signature verification to fail when it shouldn't</change>
+        <change>Updated translations</change>
+    </release>
+    <release version="5.303" versioncode="23530">
+        <change>Fixed bug that could lead to attachments not being displayed</change>
+        <change>Fixed bug where HTML messages weren't displayed correctly</change>
+        <change>Fixed crash when encountering invalid email addresses</change>
+    </release>
+    <release version="5.302" versioncode="23520">
+        <change>Fixed display errors of plain text messages</change>
+        <change>Added translations: Indonesian, Breton</change>
+    </release>
+    <release version="5.301" versioncode="23510">
+        <change>Improved OpenPGP support</change>
+        <change>Various bug fixes</change>
+        <change>Updated translations</change>
+    </release>
+    <release version="5.300" versioncode="23500">
+        <change>New app icon</change>
+        <change>New widget: Message List</change>
+        <change>New OpenPGP flow, adhering to Autocrypt specification</change>
+        <change>Settings export uses Storage Access Framework</change>
+        <change>Better support for multi-window</change>
+        <change>Recipient search now includes nicknames</change>
+        <change>Many bugfixes and optimizations</change>
+        <change>Added translations: Esperanto, Gaelic (Scottish), Icelandic, Welsh</change>
+    </release>
+    <release version="5.208" versioncode="23280">
         <change>Fixed bug where automatic synchronization wouldn't restart after the device exited doze mode</change>
     </release>
     <release version="5.207" versioncode="23270">
@@ -134,7 +176,7 @@
         <change>Improved compatibility with IMAP (proxy) servers</change>
         <change>Improved support for non-standard conform "share" functionality used by some apps</change>
         <change>Another attempt at working around the display bug on Asus Transformer devices</change>
-        <change>Added mailbox.org to the list of providers﻿</change>
+        <change>Added mailbox.org to the list of providers</change>
         <change>More bug fixes</change>
     </release>
     <release version="4.803" versioncode="20004" >

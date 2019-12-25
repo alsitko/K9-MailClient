@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
-import android.util.Log;
 
 import com.fsck.k9.Account;
 import com.fsck.k9.K9;
@@ -20,10 +19,12 @@ import com.fsck.k9.R;
 import com.fsck.k9.mailstore.CryptoResultAnnotation;
 import com.fsck.k9.mailstore.MessageViewInfo;
 import com.fsck.k9.view.MessageCryptoDisplayStatus;
+import timber.log.Timber;
 
 
 public class MessageCryptoPresenter implements OnCryptoClickListener {
     public static final int REQUEST_CODE_UNKNOWN_KEY = 123;
+    public static final int REQUEST_CODE_SECURITY_WARNING = 124;
 
 
     // injected state
@@ -36,6 +37,7 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
 
     // transient state
     private CryptoResultAnnotation cryptoResultAnnotation;
+    private boolean reloadOnResumeWithoutRecreateFlag;
 
 
     public MessageCryptoPresenter(Bundle savedInstanceState, MessageCryptoMvpView messageCryptoMvpView) {
@@ -50,6 +52,13 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
         outState.putBoolean("overrideCryptoWarning", overrideCryptoWarning);
     }
 
+    public void onResume() {
+        if (reloadOnResumeWithoutRecreateFlag) {
+            reloadOnResumeWithoutRecreateFlag = false;
+            messageCryptoMvpView.restartMessageCryptoProcessing();
+        }
+    }
+
     public boolean maybeHandleShowMessage(MessageTopView messageView, Account account, MessageViewInfo messageViewInfo) {
         this.cryptoResultAnnotation = messageViewInfo.cryptoResultAnnotation;
 
@@ -59,9 +68,13 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
             return false;
         }
 
-        boolean suppressSignOnlyMessages = !account.getCryptoSupportSignOnly();
+        boolean suppressSignOnlyMessages = !K9.getOpenPgpSupportSignOnly();
         if (suppressSignOnlyMessages && displayStatus.isUnencryptedSigned()) {
             return false;
+        }
+
+        if (cryptoResultAnnotation.isOverrideSecurityWarning()) {
+            overrideCryptoWarning = true;
         }
 
         messageView.getMessageHeaderView().setCryptoStatus(displayStatus);
@@ -98,21 +111,32 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
             }
 
             case CANCELLED: {
-                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext(), account);
+                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext());
                 messageView.showMessageCryptoCancelledView(messageViewInfo, providerIcon);
                 break;
             }
 
             case INCOMPLETE_ENCRYPTED: {
-                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext(), account);
+                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext());
                 messageView.showMessageEncryptedButIncomplete(messageViewInfo, providerIcon);
                 break;
             }
 
             case ENCRYPTED_ERROR:
+            case ENCRYPTED_INSECURE:
             case UNSUPPORTED_ENCRYPTED: {
-                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext(), account);
-                messageView.showMessageCryptoErrorView(messageViewInfo, providerIcon);
+                Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext());
+                if (messageViewInfo.cryptoResultAnnotation.hasReplacementData()) {
+                    showMessageCryptoWarning(messageView, account, messageViewInfo,
+                            R.string.messageview_crypto_warning_insecure);
+                } else {
+                    messageView.showMessageCryptoErrorView(messageViewInfo, providerIcon);
+                }
+                break;
+            }
+
+            case ENCRYPTED_NO_PROVIDER: {
+                messageView.showCryptoProviderNotConfigured(messageViewInfo);
                 break;
             }
 
@@ -137,10 +161,10 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
             messageView.showMessage(account, messageViewInfo);
             return;
         }
-        Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext(), account);
-        messageView.showMessageCryptoWarning(messageViewInfo, providerIcon, warningStringRes);
+        Drawable providerIcon = getOpenPgpApiProviderIcon(messageView.getContext());
+        boolean showDetailButton = cryptoResultAnnotation.hasOpenPgpInsecureWarningPendingIntent();
+        messageView.showMessageCryptoWarning(messageViewInfo, providerIcon, warningStringRes, showDetailButton);
     }
-
 
     @Override
     public void onCryptoClick() {
@@ -164,19 +188,27 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
 
     @SuppressWarnings("UnusedParameters") // for consistency with Activity.onActivityResult
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != REQUEST_CODE_UNKNOWN_KEY) {
+        if (requestCode == REQUEST_CODE_UNKNOWN_KEY) {
+            if (resultCode != Activity.RESULT_OK) {
+                return;
+            }
+
+            messageCryptoMvpView.restartMessageCryptoProcessing();
+        } else if (requestCode == REQUEST_CODE_SECURITY_WARNING) {
+            if (overrideCryptoWarning || resultCode != Activity.RESULT_OK) {
+                return;
+            }
+
+            overrideCryptoWarning = true;
+            messageCryptoMvpView.redisplayMessage();
+        } else {
             throw new IllegalStateException("got an activity result that wasn't meant for us. this is a bug!");
         }
-
-        if (resultCode != Activity.RESULT_OK) {
-            return;
-        }
-
-        messageCryptoMvpView.restartMessageCryptoProcessing();
     }
 
     private void displayCryptoInfoDialog(MessageCryptoDisplayStatus displayStatus) {
-        messageCryptoMvpView.showCryptoInfoDialog(displayStatus);
+        messageCryptoMvpView.showCryptoInfoDialog(
+                displayStatus, cryptoResultAnnotation.hasOpenPgpInsecureWarningPendingIntent());
     }
 
     private void launchPendingIntent(CryptoResultAnnotation cryptoResultAnnotation) {
@@ -187,7 +219,7 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
                         pendingIntent.getIntentSender(), REQUEST_CODE_UNKNOWN_KEY, null, 0, 0, 0);
             }
         } catch (IntentSender.SendIntentException e) {
-            Log.e(K9.LOG_TAG, "SendIntentException", e);
+            Timber.e(e, "SendIntentException");
         }
     }
 
@@ -199,7 +231,7 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
                         pendingIntent.getIntentSender(), null, null, 0, 0, 0);
             }
         } catch (IntentSender.SendIntentException e) {
-            Log.e(K9.LOG_TAG, "SendIntentException", e);
+            Timber.e(e, "SendIntentException");
         }
     }
 
@@ -212,6 +244,18 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
         messageCryptoMvpView.redisplayMessage();
     }
 
+    public void onClickShowCryptoWarningDetails() {
+        try {
+            PendingIntent pendingIntent = cryptoResultAnnotation.getOpenPgpInsecureWarningPendingIntent();
+            if (pendingIntent != null) {
+                messageCryptoMvpView.startPendingIntentForCryptoPresenter(
+                        pendingIntent.getIntentSender(), REQUEST_CODE_SECURITY_WARNING, null, 0, 0, 0);
+            }
+        } catch (IntentSender.SendIntentException e) {
+            Timber.e(e, "SendIntentException");
+        }
+    }
+
     public Parcelable getDecryptionResultForReply() {
         if (cryptoResultAnnotation != null && cryptoResultAnnotation.isOpenPgpResult()) {
             return cryptoResultAnnotation.getOpenPgpDecryptionResult();
@@ -220,16 +264,21 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
     }
 
     @Nullable
-    private static Drawable getOpenPgpApiProviderIcon(Context context, Account account) {
+    private static Drawable getOpenPgpApiProviderIcon(Context context) {
         try {
-            String openPgpProvider = account.getOpenPgpProvider();
-            if (Account.NO_OPENPGP_PROVIDER.equals(openPgpProvider)) {
+            String openPgpProvider = K9.getOpenPgpProvider();
+            if (K9.NO_OPENPGP_PROVIDER.equals(openPgpProvider)) {
                 return null;
             }
             return context.getPackageManager().getApplicationIcon(openPgpProvider);
         } catch (NameNotFoundException e) {
             return null;
         }
+    }
+
+    public void onClickConfigureProvider() {
+        reloadOnResumeWithoutRecreateFlag = true;
+        messageCryptoMvpView.showCryptoConfigDialog();
     }
 
     public interface MessageCryptoMvpView {
@@ -239,6 +288,7 @@ public class MessageCryptoPresenter implements OnCryptoClickListener {
         void startPendingIntentForCryptoPresenter(IntentSender si, Integer requestCode, Intent fillIntent,
                 int flagsMask, int flagValues, int extraFlags) throws IntentSender.SendIntentException;
 
-        void showCryptoInfoDialog(MessageCryptoDisplayStatus displayStatus);
+        void showCryptoInfoDialog(MessageCryptoDisplayStatus displayStatus, boolean hasSecurityWarning);
+        void showCryptoConfigDialog();
     }
 }

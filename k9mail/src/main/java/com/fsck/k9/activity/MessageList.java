@@ -19,7 +19,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.util.Log;
+import timber.log.Timber;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -485,7 +485,7 @@ public class MessageList extends K9Activity implements MessageListFragmentListen
         mSingleFolderMode = mSingleAccountMode && (mSearch.getFolderNames().size() == 1);
 
         if (mSingleAccountMode && (mAccount == null || !mAccount.isAvailable(this))) {
-            Log.i(K9.LOG_TAG, "not opening MessageList of unavailable account");
+            Timber.i("not opening MessageList of unavailable account");
             onAccountUnavailable();
             return false;
         }
@@ -535,6 +535,8 @@ public class MessageList extends K9Activity implements MessageListFragmentListen
 
     @Override
     public void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+
         mMessageListWasDisplayed = savedInstanceState.getBoolean(STATE_MESSAGE_LIST_WAS_DISPLAYED);
         mFirstBackStackId = savedInstanceState.getInt(STATE_FIRST_BACK_STACK_ID);
     }
@@ -736,7 +738,12 @@ public class MessageList extends K9Activity implements MessageListFragmentListen
                 return true;
             }*/
             case KeyEvent.KEYCODE_H: {
-                Toast toast = Toast.makeText(this, R.string.message_list_help_key, Toast.LENGTH_LONG);
+                Toast toast;
+                if (mDisplayMode == DisplayMode.MESSAGE_LIST) {
+                    toast = Toast.makeText(this, R.string.message_list_help_key, Toast.LENGTH_LONG);
+                } else {
+                    toast = Toast.makeText(this, R.string.message_view_help_key, Toast.LENGTH_LONG);
+                }
                 toast.show();
                 return true;
             }
@@ -763,8 +770,7 @@ public class MessageList extends K9Activity implements MessageListFragmentListen
         // Swallow these events too to avoid the audible notification of a volume change
         if (K9.useVolumeKeysForListNavigationEnabled()) {
             if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP) || (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-                if (K9.DEBUG)
-                    Log.v(K9.LOG_TAG, "Swallowed key up.");
+                Timber.v("Swallowed key up.");
                 return true;
             }
         }

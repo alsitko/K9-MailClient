@@ -1,6 +1,7 @@
 package com.fsck.k9.mailstore;
 
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,10 +32,11 @@ public class MimePartStreamParser {
             throws MessagingException, IOException {
         MimeBodyPart parsedRootPart = new MimeBodyPart();
 
-        MimeConfig parserConfig  = new MimeConfig();
-        parserConfig.setMaxHeaderLen(-1);
-        parserConfig.setMaxLineLen(-1);
-        parserConfig.setMaxHeaderCount(-1);
+        MimeConfig parserConfig  = new MimeConfig.Builder()
+                .setMaxHeaderLen(-1)
+                .setMaxLineLen(-1)
+                .setMaxHeaderCount(-1)
+                .build();
 
         MimeStreamParser parser = new MimeStreamParser(parserConfig);
         parser.setContentHandler(new PartBuilder(fileFactory, parsedRootPart));
@@ -133,12 +135,18 @@ public class MimePartStreamParser {
 
         @Override
         public void preamble(InputStream is) throws MimeException, IOException {
-            // Do nothing
+            expect(MimeMultipart.class);
+            ByteArrayOutputStream preamble = new ByteArrayOutputStream();
+            IOUtils.copy(is, preamble);
+            ((MimeMultipart)stack.peek()).setPreamble(preamble.toByteArray());
         }
 
         @Override
         public void epilogue(InputStream is) throws MimeException, IOException {
-            // Do nothing
+            expect(MimeMultipart.class);
+            ByteArrayOutputStream epilogue = new ByteArrayOutputStream();
+            IOUtils.copy(is, epilogue);
+            ((MimeMultipart) stack.peek()).setEpilogue(epilogue.toByteArray());
         }
 
         @Override
@@ -172,6 +180,13 @@ public class MimePartStreamParser {
         @Override
         public void raw(InputStream is) throws MimeException, IOException {
             throw new IllegalStateException("Not implemented");
+        }
+
+        private void expect(Class<?> c) {
+            if (!c.isInstance(stack.peek())) {
+                throw new IllegalStateException("Internal stack error: " + "Expected '"
+                        + c.getName() + "' found '" + stack.peek().getClass().getName() + "'");
+            }
         }
     }
 }
